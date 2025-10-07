@@ -1,46 +1,38 @@
 name: WebLogic CI/CD Pipeline
 
-on: [push]  # هر push، اجرا می‌شه
+on: [push]
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest  # runner ابری رایگان GitHub
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4  # کدت رو می‌کشه
+      uses: actions/checkout@v4
 
-    - name: Set up JDK 11  # برای Java
+    - name: Set up JDK 11
       uses: actions/setup-java@v4
       with:
         java-version: '11'
         distribution: 'temurin'
 
-    - name: Download WebLogic Installer  # دانلود ابری از Oracle
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build App with Maven
+      run: mvn clean package -DskipTests
+
+    - name: Build and Run WebLogic Docker
       run: |
-        # WebLogic ZIP رو از لینک مستقیم Oracle دانلود کن
-        wget --no-cookies --no-check-certificate --header "Cookie: oraclelicense=accept-securebackup-cookie" "https://download.oracle.com/otn-pub/java/jdk/14.1.1.0.0/fmw_14.1.1.0.0_wls_Disk1_1of1.zip"
-        unzip fmw_14.1.1.0.0_wls_Disk1_1of1.zip
-        export MW_HOME=$PWD/wlserver
-        # Domain setup ساده
-        mkdir -p $MW_HOME/user_projects/domains/base_domain
-        echo "weblogic" > $MW_HOME/user_projects/domains/base_domain/SecurityUserPass.txt
+        docker build -t weblogic-app .
+        docker run -d -p 7001:7001 --name weblogic weblogic-app sleep 60
+        # Deploy WAR inside container
+        docker cp target/*.war weblogic:/u01/domains/base_domain/autodeploy/
+        # Simple test
+        sleep 30
+        docker exec weblogic curl -f http://localhost:7001/ || echo "Test skipped"
 
-    - name: Build App with Maven  # اپت رو build کن
-      run: mvn clean package -DskipTests  # WAR تولید می‌کنه
-
-    - name: Start WebLogic Server  # server رو ابری start کن
-      run: |
-        export DOMAIN_HOME=$MW_HOME/user_projects/domains/base_domain
-        $MW_HOME/wlserver/server/bin/startWebLogic.sh -Dweblogic.management.username=weblogic -Dweblogic.management.password=weblogic &
-        sleep 60  # صبر برای boot
-        # Deploy WAR
-        cp target/*.war $DOMAIN_HOME/autodeploy/
-        # Test ساده
-        sleep 30  # صبر بیشتر
-        curl -f http://localhost:7001/ || echo "WebLogic test skipped"
-
-    - name: Upload Artifact  # WAR رو save کن
+    - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: weblogic-app
