@@ -12,3 +12,5 @@ EXPOSE 8080
 
 # اجرای Tomcat
 CMD ["catalina.sh", "run"]
+
+# baraye test
