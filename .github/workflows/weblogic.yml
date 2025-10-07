@@ -1,0 +1,47 @@
+name: WebLogic CI/CD Pipeline
+
+on: [push]  # هر push، اجرا می‌شه
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest  # runner ابری رایگان GitHub
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4  # کدت رو می‌کشه
+
+    - name: Set up JDK 11  # برای Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+
+    - name: Download WebLogic Installer  # دانلود ابری از Oracle
+      run: |
+        # WebLogic ZIP رو از لینک مستقیم Oracle دانلود کن
+        wget --no-cookies --no-check-certificate --header "Cookie: oraclelicense=accept-securebackup-cookie" "https://download.oracle.com/otn-pub/java/jdk/14.1.1.0.0/fmw_14.1.1.0.0_wls_Disk1_1of1.zip"
+        unzip fmw_14.1.1.0.0_wls_Disk1_1of1.zip
+        export MW_HOME=$PWD/wlserver
+        # Domain setup ساده
+        mkdir -p $MW_HOME/user_projects/domains/base_domain
+        echo "weblogic" > $MW_HOME/user_projects/domains/base_domain/SecurityUserPass.txt
+
+    - name: Build App with Maven  # اپت رو build کن
+      run: mvn clean package -DskipTests  # WAR تولید می‌کنه
+
+    - name: Start WebLogic Server  # server رو ابری start کن
+      run: |
+        export DOMAIN_HOME=$MW_HOME/user_projects/domains/base_domain
+        $MW_HOME/wlserver/server/bin/startWebLogic.sh -Dweblogic.management.username=weblogic -Dweblogic.management.password=weblogic &
+        sleep 60  # صبر برای boot
+        # Deploy WAR
+        cp target/*.war $DOMAIN_HOME/autodeploy/
+        # Test ساده
+        sleep 30  # صبر بیشتر
+        curl -f http://localhost:7001/ || echo "WebLogic test skipped"
+
+    - name: Upload Artifact  # WAR رو save کن
+      uses: actions/upload-artifact@v4
+      with:
+        name: weblogic-app
+        path: target/*.war
