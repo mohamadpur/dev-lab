@@ -31,3 +31,4 @@ jobs:
           sleep 10
           # چک کردن اینکه کانتینر بالا آمده
           curl -f http://localhost:8080/ || (docker ps -a && docker logs simple-tomcat && exit 1)
+# Trigger GitHub Actions workflow
